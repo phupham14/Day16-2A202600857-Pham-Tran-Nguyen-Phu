@@ -302,6 +302,28 @@ Nếu sử dụng phương án CPU + LightGBM, nộp các mục sau (được ch
 4. **Mã nguồn** thư mục `terraform-gcp/` đã chỉnh sửa (comment GPU block, `n2-standard-8`).
 5. **Báo cáo ngắn** (5–10 dòng): so sánh kết quả training time, AUC, inference speed; giải thích lý do phải dùng CPU thay GPU.
 
+### 7.9: Báo cáo — So sánh CPU vs GPU và lý do sử dụng CPU
+
+**Lý do sử dụng CPU thay GPU:**
+Project GCP mới mặc định có quota `GPUS_ALL_REGIONS = 0`. Sau khi xin tăng quota lên 1 và được duyệt, GPU NVIDIA Tesla T4 vẫn không khả dụng (resource unavailable) ở nhiều zone thử nghiệm (us-central1-a/b/c/f, us-east1-c, asia-southeast1-a/b/c). Do đó chuyển sang phương án CPU với instance `e2-standard-8` (8 vCPU, 32 GB RAM) tại `us-central1-b`, triển khai thành công ngay lập tức mà không cần quota đặc biệt.
+
+**Kết quả benchmark LightGBM trên `e2-standard-8` (CPU):**
+
+| Metric | Giá trị |
+|---|---|
+| Thời gian load data (284,807 rows) | 1.714s |
+| Thời gian training (300 rounds) | 1.837s |
+| AUC-ROC | 0.7293 |
+| Accuracy | 99.86% |
+| F1-Score | 0.5233 |
+| Precision | 0.6081 |
+| Recall | 0.4592 |
+| Inference latency (1 row) | 0.31ms |
+| Inference throughput (1000 rows) | 1.86ms |
+
+**Nhận xét:**
+LightGBM trên CPU `e2-standard-8` cho tốc độ training rất nhanh (< 2 giây) nhờ thuật toán gradient boosting được tối ưu hóa cho đa luồng CPU. Inference latency 0.31ms/request đủ đáp ứng yêu cầu production real-time. So với phương án GPU (T4 ~$0.54/giờ), instance CPU `e2-standard-8` (~$0.27/giờ) rẻ hơn ~50% và phù hợp hơn cho workload tabular ML như bài toán phát hiện gian lận này — GPU chỉ thực sự cần thiết khi training deep learning model với lượng dữ liệu lớn hơn nhiều.
+
 ---
 
 > **Lưu ý cuối (tiếng Việt):** Dù chạy GPU hay CPU, **bước dọn dẹp (Phần 6 — `terraform destroy`) là bắt buộc** ngay sau khi nộp bài. VM `n2-standard-8`, Cloud NAT và External IP vẫn tính phí liên tục theo giây dù không có tác vụ nào đang chạy. Đừng bỏ qua bước này!
